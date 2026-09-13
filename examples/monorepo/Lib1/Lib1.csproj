@@ -7,4 +7,8 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Sinks.Console" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Framework.cs" />
+  </ItemGroup>
 </Project>

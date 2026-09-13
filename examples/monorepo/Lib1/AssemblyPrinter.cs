@@ -8,7 +8,8 @@ public static class AssemblyPrinter
     {
         SerilogLog();
 
-        return $"{new string(' ', indent)}{Printer.GetFullAssemblyString(indent, typeof(AssemblyPrinter), Framework.GetCurrentFramework())}";
+        var str = Printer.GetFullAssemblyString(indent, typeof(AssemblyPrinter), Framework.GetCurrentFramework());
+        return $"{new string(' ', indent)}{str}";
     }
 
     private static void SerilogLog()

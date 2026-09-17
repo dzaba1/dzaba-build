@@ -21,6 +21,9 @@ jobs:
             /examples/monorepo/NuGet.config
             /examples/monorepo/version.json
 
+      - name: Build Dzaba.Build SDK
+        run: dotnet build src/Dzaba.Build/Dzaba.Build.csproj
+
       - name: Build App1
         run: dotnet build --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/App1

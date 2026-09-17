@@ -1,0 +1,97 @@
+# ADR-0002: Resolve ProjectReference caching recursively via Dzaba-owned MSBuild hooks, not MSBuild's native reference build
+
+## Context
+[ADR-0001](ADR-0001-xml-vs-library.md) settled *how* Dzaba Build's logic is authored (plain C# services behind thin `Microsoft.Build.Utilities.Task` adapters, no business logic in XML). It left open *how the tool is invoked* and *what algorithm decides, per project, whether to build it or restore its outputs from cache*. That gap has to close before any code is written against the `Dzaba.Build` task assembly, since it determines where the custom tasks hook into the MSBuild target pipeline.
+
+Four mechanical MSBuild/git facts constrain every option considered below:
+
+1. `dotnet build --no-dependencies` (equivalently, `/p:BuildProjectReferences=false`) only suppresses the **Build**-target cascade that MSBuild would otherwise run across `ProjectReference` items. It does **not** stop NuGet's implicit restore from walking the *entire* `ProjectReference` closure to build its lock/asset file, and it does not stop `ResolveProjectReferences`/`ResolveAssemblyReferences` from needing each reference's output assembly to already exist at its expected path. Disabling native recursion therefore does not remove the need for every referenced `.csproj` file to be present and evaluable on disk.
+2. Per the README's [git sparse checkout](../README.md) support: sparse checkout only affects the working tree, not git's object database. A project's content hash (its git tree SHA) is always computable from git metadata alone, without the project's files being materialized locally. Only an actual *build* of a project (as opposed to deciding whether it needs one) requires its sources to be checked out.
+3. Per the README's [Traversal MSBuild SDK](../README.md) support: a Traversal `dirs.proj` is, structurally, just a project with `ProjectReference` items and no `Compile` items or build output of its own. It is not a different kind of thing from the tool's point of view — it's a graph node whose only job is to reference other nodes.
+4. Git's object database gives content-addressable, no-checkout-required read access to *any* file at any commit (`git cat-file`/`git show <rev>:<path>`), and `git sparse-checkout add <pattern>` can widen the working tree by an arbitrarily narrow file pattern. Fact 1's requirement ("every referenced `.csproj` must be present on disk") therefore does not imply a repo-wide sparse-checkout cone convention — it can be satisfied by fetching exactly the `.csproj` files a given build actually discovers it needs, on demand, as it walks the `ProjectReference` graph. The one thing that convention *can't* cover is MSBuild's upward-directory-walk import of `Directory.Build.props`/`Directory.Build.targets`/`Directory.Packages.props` — those ancestor files must be present at every directory level up to the repo root regardless of which leaf project is being built, so they're a small, static, unavoidable part of any checkout, unlike per-project `.csproj` files.
+
+Given those constraints, this ADR decides between:
+
+- **Option A — MSBuild-native recursion with per-node up-to-date short-circuits.** Let MSBuild's own `ProjectReference` build cascade run as normal, and skip work per node via conditioned targets / up-to-date checks.
+- **Option B — Dzaba-owned recursion with `--no-dependencies`.** Disable MSBuild's native cascade; a Dzaba task walks the reference graph itself and decides build-vs-restore-from-cache per node. Because fact 3 above means a Traversal `dirs.proj` is just another reference-only node, this option also handles multi-entry-point orchestration for free: `dotnet build dirs.proj -p:DzabaBuildEnabled=true` walks its `ProjectReference` items with the exact same pipeline as any other project, with no separate planning pass or batch-plan mechanism required.
+
+## Non-Goals
+- **Exact cache-key/hash formula.** Reserved for a future ADR. This ADR only constrains it: a cache key for a project must be derivable from git object metadata (tree/blob SHAs) plus its dependencies' keys, never from reading materialized working-tree content — so a hit/miss decision works under sparse checkout without a separate "which files changed" pass.
+- **Cache storage/transport protocol.** Reserved for a future ADR. The algorithm here only requires an opaque `Exists(key)` / `Fetch(key)` / `Publish(key, artifacts)` surface, per ADR-0001's "pluggable cache storage" driver.
+- **Traversal SDK's own internal target wiring / `dirs.proj` authoring conventions.** How a `dirs.proj` is written or how the Traversal SDK's own targets are structured is Microsoft's concern, not this ADR's. This ADR only relies on the structural fact that such a project has `ProjectReference` items and nothing to compile — multi-entry-point orchestration itself is covered by the algorithm below, not deferred.
+- **Auto-remediation of a genuine cache-miss build with unmaterialized *sources*.** A cache miss on a project whose `.cs`/content files aren't checked out locally is a hard failure with an actionable error message (naming the path, suggesting `git sparse-checkout add <path>`) — the build must never silently widen the cone to pull a whole project's source tree just to satisfy an unplanned build. This is a distinct concern from the narrow, deliberate `.csproj`/`.props`/`.targets` metadata-file fetching described in the Decision Outcome below, which is required regardless of hit/miss and is not "auto-remediation" of a failure — it's a normal, bounded step of the algorithm.
+- **Exact mechanism for on-demand project-file fetching** (git plumbing calls vs. `git sparse-checkout add`, exact command sequence). Reserved for implementation; this ADR only decides that project/build-logic files are sourced from git on demand and build outputs are sourced from Dzaba's cache store — never the other way around.
+
+## Decision Drivers
+1. **Per-project cache granularity.** The core value proposition is deciding build-vs-restore at individual project scope, not for the whole repo at once.
+2. **Dual host support** (ADR-0001 driver #4). The contract must reduce to a raw MSBuild property (`BuildProjectReferences`), because classic `MSBuild.exe` (.NET Framework host) has no `--no-dependencies` CLI flag — only `dotnet build` does.
+3. **Git sparse checkout.** Deciding build-vs-cache for a node must never require that node's sources to be materialized on disk; only an actual cache-miss *build* does. A CI job must be able to check out only its entry project's own directory plus a small, static set of ancestor/root files — not every project's `.csproj` repo-wide — and still have the algorithm work by fetching exactly the project files it discovers it needs, on demand.
+4. **Air-gapped environments.** The algorithm must not depend on network access beyond the already-abstracted cache storage and locally available git objects — including for on-demand project-file fetching, which requires those git objects to already be present in the local clone (see Consequences).
+5. **Pluggable cache storage** (ADR-0001 driver #1). The algorithm must talk to cache storage only through an exists/fetch/publish-by-opaque-key surface; storage must never need to model git or project topology.
+6. **Central Package Management / Nerdbank.GitVersioning compatibility.** A project's relevant inputs are not confined to its own folder (ancestor `Directory.Packages.props`, NBGV git height affecting version numbers), so the algorithm must allow a node's cache key to depend on inputs outside its own path.
+7. **Testability, debuggability, maintainability** (ADR-0001 drivers #2/#3/#6). The graph-walk/decision logic should be a small, pure, unit-testable function, decoupled from the process orchestration around it.
+
+## Considered Options
+
+### Option A: MSBuild-native recursion with per-node up-to-date short-circuits
+| Driver | Assessment |
+|---|---|
+| Per-project granularity | OK. MSBuild's native traversal is already diamond-safe and can build in parallel. |
+| Dual host support | OK. Native recursion is host-agnostic. |
+| Git sparse checkout | Poor. Native recursion evaluates and restores every node in normal build order before any short-circuit logic can run — there's no single point to fetch a missing project file or fail fast on unmaterialized sources before MSBuild has already tried to touch it. |
+| Air-gapped environments | OK. |
+| Pluggable cache storage | OK, but the hit/miss decision ends up smeared across N separate per-node target-skip conditions instead of one place. |
+| CPM / NBGV compatibility | OK. |
+| Testability / maintainability | Poor. "Skip most of a project's target graph" via XML-conditioned targets re-opens the XML-complexity problem ADR-0001 already rejected, and correctness depends on MSBuild's internal scheduler ordering rather than Dzaba-owned code. |
+
+### Option B: Dzaba-owned recursion with `--no-dependencies` (chosen)
+| Driver | Assessment |
+|---|---|
+| Per-project granularity | Good. One uniform recursive decision function per node. |
+| Dual host support | Good, since the contract is stated at the `BuildProjectReferences` MSBuild-property level, not the `dotnet` CLI-flag level. |
+| Git sparse checkout | Good. A single hook point, run before Restore, can fetch exactly the `.csproj` files the entry project's own references need — no repo-wide checkout convention required. |
+| Air-gapped environments | Good. |
+| Pluggable cache storage | Good. A single exists/fetch/publish surface, called from one place. |
+| CPM / NBGV compatibility | Good. Cache-key composition is free to include ancestor files and version-affecting metadata. |
+| Testability / maintainability | Good. The decision function is a plain, unit-testable C# function; matches ADR-0001's thin-adapter pattern. |
+| Multi-entry-point / Traversal SDK orchestration | Good, for free. Since a Traversal `dirs.proj` is structurally just a `ProjectReference`-only node with nothing to compile (fact 3 in Context), it needs no separate mechanism: `dotnet build dirs.proj -p:DzabaBuildEnabled=true` walks its references with the exact same recursive algorithm as any other project. |
+
+Cost, stated honestly rather than hidden in the table: this option reimplements a graph walk MSBuild already performs natively, pays process-startup overhead for every cache-miss node (built via a nested `dotnet build`), and loses cross-process memoization for diamond dependencies reached by two different parents *when a cache miss forces a separate nested process for each*. Sibling references resolved within one target invocation (including a `dirs.proj`'s direct references) are already batched and memoized together, so this cost is specific to nested cache-miss builds, not to Traversal-style aggregation. Accepted for a first version; see Consequences.
+
+## Decision Outcome
+**Option B: a Dzaba-owned task walks the `ProjectReference` graph itself; MSBuild's native reference-build cascade is disabled via `BuildProjectReferences=false`, implied automatically by a single opt-in property.**
+
+- **Invocation contract:**
+  ```
+  dotnet build MyApp.csproj -p:DzabaBuildEnabled=true
+  ```
+  `DzabaBuildEnabled` (deliberately not `Dzaba_CI`, to avoid confusion with MSBuild's existing, unrelated `ContinuousIntegrationBuild` property used for SourceLink/deterministic builds). Setting it to `true` causes Dzaba's auto-imported `.props` to set `BuildProjectReferences=false` itself, so callers never need to separately pass `--no-dependencies`. The contract is defined at the **MSBuild property level**, not the `dotnet` CLI-flag level, so it works identically under classic `MSBuild.exe`. When the property is unset, default `dotnet build`/`MSBuild.exe` behavior is completely unaffected — this is strictly opt-in.
+
+- **Target pipeline**, three Dzaba-owned targets on the entry project — one hooked *before* `Restore`, two between `Restore` and `ResolveProjectReferences`:
+  - `DzabaMaterializeProjectReferences` (`BeforeTargets="Restore"`) — reads the entry project's own direct `@(ProjectReference)` items (already on disk, since this is the entry project itself) and, for any whose `.csproj` file doesn't exist locally, fetches just that file from git on demand — either a direct object read (`git show <rev>:<path>`) or a narrow `git sparse-checkout add <path-pattern>` scoped to that project's `.csproj`/`.props`/`.targets`, never its `.cs`/content files. This exists because restore needs every direct reference's project file regardless of whether that reference later turns out to be a cache hit or miss (fact 1) — and because fact 4 means that requirement can be satisfied narrowly and on demand instead of by a static, repo-wide checkout. It goes exactly one level deep per invocation; a cache-miss reference's *own* references are materialized when the nested build (below) runs this same target on its own entry project, so widening only ever goes as deep as actual misses force it to.
+  - `DzabaRestoreCachedDeps` — enumerates the entry project's direct `@(ProjectReference)` items only (deeper levels are handled by recursion, not by this target walking multiple levels itself). For each reference: if a valid local output already exists, use it as-is; otherwise compute its cache key and check cache storage. Cache-hit fetches are batched with bounded parallel concurrency; fetched artifacts are materialized at the exact output path MSBuild expects, stamped with the current time so downstream incremental-build checks don't treat freshly-restored output as stale. Reports restored/already-present/miss counts for diagnostics.
+  - `DzabaBuildMissingProjectRefs` — anything still missing after the above is a genuine cache miss. If that project's sources aren't materialized on disk (sparse checkout excluded them), fail fast with an actionable error naming the path and suggesting `git sparse-checkout add <path>`. Otherwise, build it via a **nested** `dotnet build <ref.csproj> -p:DzabaBuildEnabled=true`, explicitly forwarding `Configuration`/`Platform`/`TargetFramework` (a child process does not inherit the parent's in-memory global-property bag), then publish its outputs to cache. Because the nested invocation re-applies the same `DzabaBuildEnabled` gate, recursion into that project's own references happens automatically — no explicit multi-level walk is required at this level.
+  - `ResolveProjectReferences` and `Compile` then run completely unmodified: every direct reference's output is now present and valid, whether via pre-existing local build, cache restore, or nested build.
+
+- **Concurrency:** restoring or building a given cache key is guarded by a cross-process named lock (named OS mutex or file lock) keyed by the cache key. This is required, not optional, because MSBuild's own parallel build nodes, Dzaba's nested per-miss processes, and separate CI agents sharing a local cache directory can all race to restore or build the same dependency — e.g. a diamond dependency reached via two different parent projects in the same build.
+
+- **Scope boundary:** this algorithm applies only to a project's `ProjectReference` closure, never to the entry project passed to `dotnet build` itself. The entry project always runs its normal `Restore` → `Compile` sequence (for a Traversal `dirs.proj` entry, there is no `Compile` step to run, so this is a no-op — only its references go through the pipeline). Whether the entry project needed building at all is a decision made by whatever invokes `dotnet build` (an outer CI script) — deliberately out of scope here, since skipping `CoreCompile` mid-pipeline for a real entry project is materially harder than materializing a reference's output before `ResolveProjectReferences` runs.
+
+- **Multi-entry-point / Traversal SDK orchestration** composes for free rather than needing its own mechanism: because a `dirs.proj` is just another `ProjectReference`-only node (Context, fact 3), building one applies this same algorithm to its references — including nested `dirs.proj` files, recursively. No separate design-time planning pass is needed for a first version.
+
+- **Sparse-checkout precondition, narrowed:** only a small, static set of ancestor/root files must always be checked out — `Directory.Build.props`/`Directory.Build.targets`/`Directory.Packages.props`/`NuGet.config`/`global.json`/solution/Traversal root files at repo root and any intermediate directory levels — because MSBuild's implicit upward-directory-walk import needs them regardless of which leaf project is being built (fact 4). Per-project `.csproj` files are **not** required to be checked out ahead of time; `DzabaMaterializeProjectReferences` fetches them narrowly, on demand, as described above. A CI job can therefore check out only its entry project's own directory plus those root files — e.g. `examples/monorepo/App1/` plus `examples/monorepo/{Directory.Build.props,Directory.Packages.props,NuGet.config,version.json}` — and the algorithm still works.
+
+## Consequences
+
+**Positive**
+- A single, small, pure, unit-testable decision function per node, aligned with ADR-0001's testability and debuggability drivers, cleanly separated from the nested-process orchestration around it.
+- Works correctly under sparse checkout without turning cache storage into a second, weaker copy of git's own project topology, and without requiring a repo-wide "always include every `.csproj`" checkout convention — a CI job can check out just its entry project's own directory plus a handful of root files.
+- No "restore whatever's latest" guessing: because cache keys are derivable from git object metadata, every lookup is either an exact hit or a genuine, explainable miss.
+- Opt-in via a single MSBuild property; zero behavioral change to default `dotnet build`/`MSBuild.exe` invocations.
+- Multi-entry-point orchestration via the Traversal MSBuild SDK needs no bespoke mechanism — a `dirs.proj` is handled by the same algorithm as any other project, since it's just a `ProjectReference`-only node.
+
+**Negative**
+- Cross-process memoization is lost for diamond dependencies split across sibling processes within one top-level invocation (e.g. two parents both missing cache for the same dependency in the same build, each triggering its own nested cache-miss build) — accepted for a first version; an in-process `BuildManager`-based build is a candidate future mitigation.
+- Every cache-miss node pays nested-process startup overhead compared to an in-process build.
+- On-demand project-file fetching depends on the local clone actually holding the needed git objects. A normal clone (or a `--filter=blob:none` clone with full history fetched) works; a genuinely shallow/blobless clone missing those objects would need a network fetch to git's remote to satisfy `DzabaMaterializeProjectReferences`, which is in tension with the air-gapped driver — air-gapped setups must ensure the local clone already contains the full project-file history, not just the sparse-checked-out working tree.
+- Still requires a small, static, always-checked-out set of ancestor/root files (`Directory.Build.props` and friends at every relevant directory level) — cheap, but must be documented as part of any CI checkout step, since MSBuild's upward-import walk needs them unconditionally.

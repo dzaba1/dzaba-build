@@ -1,8 +1,5 @@
 # ADR-0001: Implement build logic as a C# library on Microsoft.Build, not plain MSBuild XML
 
-## Status
-Accepted
-
 ## Context
 Dzaba Build's goal is to build .NET monorepo code in a cached and incremental way, exposed to consumers as MSBuild targets. Per the project's [README](../README.md), it needs to support:
 

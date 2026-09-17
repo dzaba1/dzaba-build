@@ -8,7 +8,9 @@ Support for:
 - Air-gapped environments
 - Custom cache storages
 - .NET Framework and Core
-- [Git sparse checkout](https://git-scm.com/docs/git-sparse-checkout)
+- [Git sparse checkout](https://git-scm.com/docs/git-sparse-checkout) (optional, when using git)
 - [Traversal MSBuild SDK](https://github.com/microsoft/MSBuildSdks/tree/main/src/Traversal)
 
 CI system independent
+
+Version control system (git) independent.

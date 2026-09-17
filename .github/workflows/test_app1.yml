@@ -1,0 +1,26 @@
+name: Test App1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /src/
+            /examples/monorepo/App1/
+            /examples/monorepo/Directory.Build.props
+            /examples/monorepo/Directory.Build.targets
+            /examples/monorepo/Directory.Packages.props
+            /examples/monorepo/Framework.cs
+            /examples/monorepo/NuGet.config
+            /examples/monorepo/version.json
+
+      - name: Build App1
+        run: dotnet build --no-dependencies -p:DzabaBuildEnabled=true
+        working-directory: examples/monorepo/App1

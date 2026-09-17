@@ -1,0 +1,39 @@
+<Project>
+
+  <!-- Dzaba.Build only supports being hosted by the dotnet SDK (Core) host, not classic
+       MSBuild.exe - see ADR-0001's amendment. Probe for the newest built task TFM so this
+       works regardless of which of net8.0/net9.0/net10.0 was actually built. -->
+  <PropertyGroup>
+    <_DzabaBuildTaskTfm Condition="Exists('$(MSBuildThisFileDirectory)..\bin\$(Configuration)\net10.0\Dzaba.Build.dll')">net10.0</_DzabaBuildTaskTfm>
+    <_DzabaBuildTaskTfm Condition="'$(_DzabaBuildTaskTfm)' == '' and Exists('$(MSBuildThisFileDirectory)..\bin\$(Configuration)\net9.0\Dzaba.Build.dll')">net9.0</_DzabaBuildTaskTfm>
+    <_DzabaBuildTaskTfm Condition="'$(_DzabaBuildTaskTfm)' == '' and Exists('$(MSBuildThisFileDirectory)..\bin\$(Configuration)\net8.0\Dzaba.Build.dll')">net8.0</_DzabaBuildTaskTfm>
+    <_DzabaBuildTaskTfm Condition="'$(_DzabaBuildTaskTfm)' == ''">net10.0</_DzabaBuildTaskTfm>
+    <_DzabaBuildTaskAssembly>$(MSBuildThisFileDirectory)..\bin\$(Configuration)\$(_DzabaBuildTaskTfm)\Dzaba.Build.dll</_DzabaBuildTaskAssembly>
+  </PropertyGroup>
+
+  <UsingTask TaskName="Dzaba.Build.Tasks.ResolveCachedProjectReferencesTask" AssemblyFile="$(_DzabaBuildTaskAssembly)" />
+
+  <!-- Per ADR-0002: hooked before ResolveProjectReferences (after Restore), enumerates only the
+       entry project's *direct* ProjectReference items and, per node, restores from cache or
+       builds+publishes. Deeper levels are handled by the nested build re-entering this same
+       target on its own entry project. -->
+  <Target Name="DzabaResolveProjectReferences"
+          BeforeTargets="ResolveProjectReferences"
+          Condition="'$(DzabaBuildEnabled)' == 'true' and '@(ProjectReference)' != ''">
+    <ResolveCachedProjectReferencesTask
+        ProjectFile="$(MSBuildProjectFullPath)"
+        Configuration="$(Configuration)"
+        Platform="$(Platform)"
+        TargetFramework="$(TargetFramework)"
+        CacheDisabled="$(DzabaCacheDisabled)"
+        CacheEnvVars="$(DzabaCacheEnvVars)"
+        CacheStorageAssembly="$(DzabaCacheStorageAssembly)"
+        CacheStorageType="$(DzabaCacheStorageType)"
+        CacheStorageDirectory="$(DzabaCacheStorageDirectory)"
+        ExcludedDirectoryNames="$(DzabaCacheExcludeDirectories)"
+        ExcludedFilePatterns="$(DzabaCacheExcludeFiles)"
+        AncestorFileNames="$(DzabaCacheAncestorFiles)"
+        VersionFileName="$(DzabaCacheVersionFileName)" />
+  </Target>
+
+</Project>

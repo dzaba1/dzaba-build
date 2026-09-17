@@ -5,4 +5,18 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
   </PropertyGroup>
+
+  <!-- Dzaba's recursive cached-build algorithm (ADR-0002) is strictly opt-in, per ADR-0002's
+       invocation contract - a plain "dotnet build" with no-dependencies and no extra properties
+       still fails exactly as it would with no Dzaba wiring at all. Pass
+       "-p:DzabaBuildEnabled=true" to turn it on for a given build. -->
+  <PropertyGroup>
+    <DzabaCacheStorageDirectory Condition="'$(DzabaCacheStorageDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\temp\</DzabaCacheStorageDirectory>
+    <DzabaCacheExcludeDirectories Condition="'$(DzabaCacheExcludeDirectories)' == ''">bin;obj;.git;.vs</DzabaCacheExcludeDirectories>
+    <DzabaCacheAncestorFiles Condition="'$(DzabaCacheAncestorFiles)' == ''">Directory.Build.props;Directory.Build.targets;Directory.Packages.props;NuGet.config;global.json</DzabaCacheAncestorFiles>
+    <DzabaCacheVersionFileName Condition="'$(DzabaCacheVersionFileName)' == ''">version.json</DzabaCacheVersionFileName>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build\build\Dzaba.Build.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.props" />
 </Project>

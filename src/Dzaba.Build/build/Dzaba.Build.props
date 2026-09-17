@@ -1,0 +1,13 @@
+<Project>
+
+  <PropertyGroup>
+    <DzabaCacheDisabled Condition="'$(DzabaCacheDisabled)' == ''">false</DzabaCacheDisabled>
+  </PropertyGroup>
+
+  <!-- Per ADR-0002: opting in to DzabaBuildEnabled disables MSBuild's native ProjectReference
+       build cascade, since Dzaba's own recursion (see Dzaba.Build.targets) takes it over. -->
+  <PropertyGroup Condition="'$(DzabaBuildEnabled)' == 'true'">
+    <BuildProjectReferences>false</BuildProjectReferences>
+  </PropertyGroup>
+
+</Project>

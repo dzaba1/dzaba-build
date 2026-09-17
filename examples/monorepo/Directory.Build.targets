@@ -1,0 +1,4 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build\build\Dzaba.Build.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.targets" />
+</Project>

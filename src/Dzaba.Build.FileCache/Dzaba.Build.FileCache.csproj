@@ -1,14 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net48;net8.0;net9.0;net10.0</TargetFrameworks>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
-    <LangVersion>14.0</LangVersion>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- No Task/UsingTask lives in this package (see Dzaba.Build.FileCache.targets) - only a
+         plain ICacheStorage implementation, so no Microsoft.Build.* dependency is needed here. -->
     <ProjectReference Include="..\Dzaba.Build\Dzaba.Build.csproj" />
   </ItemGroup>
 

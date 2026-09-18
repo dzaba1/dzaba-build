@@ -92,6 +92,7 @@ jobs:
             /examples/monorepo/Lib2/
             /examples/monorepo/Lib3/
             /examples/monorepo/Lib5/
+            /examples/monorepo/traversals/
             /examples/monorepo/Directory.Build.props
             /examples/monorepo/Directory.Build.targets
             /examples/monorepo/Directory.Packages.props
@@ -113,6 +114,10 @@ jobs:
         with:
           name: dzaba-build-sdk
           path: src
+
+      - name: Build Libs
+        run: dotnet build libs-2-3-5.proj -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        working-directory: examples/monorepo/traversals
 
   build-lib-7:
     name: Build Lib7

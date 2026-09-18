@@ -12,6 +12,7 @@ public static class Bootstrapper
 
         services.AddTransient<IFileHasher, FileHasher>();
         services.AddTransient<IHashCombiner, HashCombiner>();
+        services.AddTransient<IHashCommandHandler, HashCommandHandler>();
 
         return services;
     }

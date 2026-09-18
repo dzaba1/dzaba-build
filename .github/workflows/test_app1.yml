@@ -82,7 +82,7 @@ jobs:
           path: src
 
       - name: Build Lib1
-        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true -v:detailed
         working-directory: examples/monorepo/Lib1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -125,7 +125,7 @@ jobs:
           path: src
 
       - name: Build Libs
-        run: dotnet build libs-2-3-5.proj -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        run: dotnet build libs-2-3-5.proj -c Release --no-dependencies -p:DzabaBuildEnabled=true -v:detailed
         working-directory: examples/monorepo/traversals
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -165,7 +165,7 @@ jobs:
           path: src
 
       - name: Build Lib7
-        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true -v:detailed
         working-directory: examples/monorepo/Lib7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -205,7 +205,7 @@ jobs:
           path: src
 
       - name: Build Lib10
-        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true -v:detailed
         working-directory: examples/monorepo/Lib10
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -245,7 +245,7 @@ jobs:
           path: src
 
       - name: Build App1
-        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true -v:detailed
         working-directory: examples/monorepo/App1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

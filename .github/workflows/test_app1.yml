@@ -145,6 +145,10 @@ jobs:
           name: dzaba-build-sdk
           path: src
 
+      - name: Build Lib7
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        working-directory: examples/monorepo/Lib7
+
   build-lib-10:
     name: Build Lib10
     runs-on: windows-latest
@@ -177,6 +181,10 @@ jobs:
         with:
           name: dzaba-build-sdk
           path: src
+
+      - name: Build Lib10
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        working-directory: examples/monorepo/Lib10
 
   build-app1:
     name: Build App1

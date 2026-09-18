@@ -34,7 +34,9 @@ jobs:
           name: dzaba-build-sdk
           path: |
             src/Dzaba.Build/bin/Release
+            src/Dzaba.Build/build
             src/Dzaba.Build.FileCache/bin/Release
+            src/Dzaba.Build.FileCache/build
             src/Dzaba.Build.Cmd/bin/Release
           retention-days: 1
 

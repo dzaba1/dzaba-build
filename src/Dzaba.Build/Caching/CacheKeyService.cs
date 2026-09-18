@@ -3,9 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using Blake3;
 using Dzaba.Build.Graph;
 using Dzaba.Build.Lib.Hashing;
 using Microsoft.Extensions.Logging;
@@ -30,6 +28,7 @@ public sealed class CacheKeyService
 {
     private readonly IProjectEvaluator evaluator;
     private readonly IFileHasher fileHasher;
+    private readonly IHashCombiner hashCombiner;
     private readonly ILogger logger;
     private readonly ConcurrentDictionary<string, Lazy<(string Key, ProjectInfo Info)>> computedKeys =
         new ConcurrentDictionary<string, Lazy<(string, ProjectInfo)>>(StringComparer.OrdinalIgnoreCase);
@@ -39,10 +38,11 @@ public sealed class CacheKeyService
 
     private string sourceRoot;
 
-    public CacheKeyService(IProjectEvaluator evaluator, IFileHasher fileHasher, ILogger logger)
+    public CacheKeyService(IProjectEvaluator evaluator, IFileHasher fileHasher, IHashCombiner hashCombiner, ILogger logger)
     {
         this.evaluator = evaluator;
         this.fileHasher = fileHasher;
+        this.hashCombiner = hashCombiner;
         this.logger = logger;
     }
 
@@ -105,19 +105,19 @@ public sealed class CacheKeyService
 
     private string ComputeContentKey(ProjectInfo info, string configuration, string platform, CacheKeyOptions options)
     {
-        using var hasher = Hasher.New();
+        using var combination = hashCombiner.CreateCombination();
 
         var relativeProjectPath = Path.GetRelativePath(sourceRoot, info.ProjectFile).Replace('\\', '/');
-        UpdateString(hasher, relativeProjectPath);
-        UpdateString(hasher, info.TargetFramework);
+        combination.AddValue(relativeProjectPath);
+        combination.AddValue(info.TargetFramework);
 
         var fileHashes = fileHasher.HashDirectory(info.ProjectDirectory, options.ExcludedDirectoryNames, options.ExcludedFilePatterns);
         logger.LogDebug("{Project} ({Tfm}): hashed {Count} project files", info.ProjectFile, info.TargetFramework, fileHashes.Count);
-        UpdateCount(hasher, fileHashes.Count);
+        combination.AddCount(fileHashes.Count);
         foreach (var fileHash in fileHashes)
         {
-            UpdateString(hasher, fileHash.RelativePath);
-            UpdateString(hasher, fileHash.Hash);
+            combination.AddValue(fileHash.RelativePath);
+            combination.AddValue(fileHash.Hash);
         }
 
         var ancestorFiles = evaluator.GetAncestorFiles(info.ProjectDirectory, options.AncestorFileNames)
@@ -125,21 +125,21 @@ public sealed class CacheKeyService
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
         logger.LogDebug("{Project} ({Tfm}): {Count} ancestor build files matched", info.ProjectFile, info.TargetFramework, ancestorFiles.Count);
-        UpdateCount(hasher, ancestorFiles.Count);
+        combination.AddCount(ancestorFiles.Count);
         foreach (var file in ancestorFiles)
         {
-            UpdateString(hasher, file);
-            UpdateString(hasher, fileHasher.HashFile(file));
+            combination.AddValue(file);
+            combination.AddValue(fileHasher.HashFile(file));
         }
 
         var versionFile = evaluator.GetNearestAncestorFile(info.ProjectDirectory, options.VersionFileName);
-        UpdateString(hasher, versionFile != null ? fileHasher.HashFile(versionFile) : string.Empty);
+        combination.AddValue(versionFile != null ? fileHasher.HashFile(versionFile) : string.Empty);
 
-        UpdateCount(hasher, info.ProjectReferences.Count);
+        combination.AddCount(info.ProjectReferences.Count);
         foreach (var reference in info.ProjectReferences)
         {
             var (depKey, _) = ComputeKey(reference, configuration, platform, info.TargetFramework, options);
-            UpdateString(hasher, depKey);
+            combination.AddValue(depKey);
         }
 
         var envPairs = (options.EnvVarNames ?? Array.Empty<string>())
@@ -148,25 +148,13 @@ public sealed class CacheKeyService
             .OrderBy(n => n, StringComparer.Ordinal)
             .Select(name => (Name: name, Value: Environment.GetEnvironmentVariable(name) ?? string.Empty))
             .ToList();
-        UpdateCount(hasher, envPairs.Count);
+        combination.AddCount(envPairs.Count);
         foreach (var (name, value) in envPairs)
         {
-            UpdateString(hasher, name);
-            UpdateString(hasher, value);
+            combination.AddValue(name);
+            combination.AddValue(value);
         }
 
-        return hasher.Finalize().ToString();
-    }
-
-    private static void UpdateString(Hasher hasher, string value)
-    {
-        var bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
-        UpdateCount(hasher, bytes.Length);
-        hasher.Update(bytes);
-    }
-
-    private static void UpdateCount(Hasher hasher, int value)
-    {
-        hasher.Update(BitConverter.GetBytes(value));
+        return combination.GetHash();
     }
 }

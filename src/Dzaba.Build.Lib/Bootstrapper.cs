@@ -11,6 +11,7 @@ public static class Bootstrapper
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddTransient<IFileHasher, FileHasher>();
+        services.AddTransient<IHashCombiner, HashCombiner>();
 
         return services;
     }

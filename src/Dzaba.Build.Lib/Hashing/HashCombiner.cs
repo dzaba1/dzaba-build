@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Dzaba.Build.Lib.Hashing;
 
-public sealed class HashCombiner : IHashCombiner
+internal sealed class HashCombiner : IHashCombiner
 {
     private readonly ILogger<HashCombiner> logger;
 

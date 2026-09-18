@@ -10,4 +10,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dzaba.Build.Lib.Tests" />
+    <!-- Moq/AutoFixture use Castle DynamicProxy to mock ILogger<FileHasher>/ILogger<HashCombiner>;
+         Castle needs access to the internal FileHasher/HashCombiner type arguments to generate
+         those proxies. -->
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
 </Project>

@@ -100,3 +100,28 @@ public sealed class TaskLoggingHelperLogger<T> : Microsoft.Extensions.Logging.IL
         inner.Log(logLevel, eventId, state, exception, formatter);
     }
 }
+
+/// <summary>
+/// Adapts <see cref="TaskLoggingHelperLogger"/> as an <see cref="ILoggerProvider"/>, so it can be
+/// registered with <c>Microsoft.Extensions.Logging</c>'s <c>AddLogging</c>/<see cref="ILoggerFactory"/>
+/// pipeline (e.g. to satisfy DI-resolved <see cref="ILogger{TCategoryName}"/> dependencies) instead
+/// of only being usable via direct construction.
+/// </summary>
+public sealed class TaskLoggingHelperLoggerProvider : ILoggerProvider
+{
+    private readonly TaskLoggingHelper log;
+
+    public TaskLoggingHelperLoggerProvider(TaskLoggingHelper log)
+    {
+        this.log = log;
+    }
+
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName)
+    {
+        return new TaskLoggingHelperLogger(log);
+    }
+
+    public void Dispose()
+    {
+    }
+}

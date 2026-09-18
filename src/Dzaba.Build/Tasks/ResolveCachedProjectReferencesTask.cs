@@ -7,10 +7,12 @@ using System.Runtime.Loader;
 using Dzaba.Build.Caching;
 using Dzaba.Build.Concurrency;
 using Dzaba.Build.Graph;
+using Dzaba.Build.Lib;
 using Dzaba.Build.Lib.Hashing;
 using Dzaba.Build.Logging;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Dzaba.Build.Tasks;
@@ -83,8 +85,14 @@ public sealed class ResolveCachedProjectReferencesTask : Task
 
         var logger = new TaskLoggingHelperLogger(Log);
         var evaluator = new ProjectEvaluator();
-        var fileHasher = new FileHasher(new TaskLoggingHelperLogger<FileHasher>(Log));
-        var hashCombiner = new HashCombiner(new TaskLoggingHelperLogger<HashCombiner>(Log));
+
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddProvider(new TaskLoggingHelperLoggerProvider(Log)));
+        services.AddDzabaBuildLib();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var fileHasher = serviceProvider.GetRequiredService<IFileHasher>();
+        var hashCombiner = serviceProvider.GetRequiredService<IHashCombiner>();
         var cacheKeyService = new CacheKeyService(evaluator, fileHasher, hashCombiner, logger);
 
         var options = new CacheKeyOptions

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Dzaba.Build.Lib.Hashing;
 
-public sealed class FileHasher : IFileHasher
+internal sealed class FileHasher : IFileHasher
 {
     private readonly ILogger<FileHasher> logger;
 

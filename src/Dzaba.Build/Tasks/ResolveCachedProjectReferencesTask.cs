@@ -83,7 +83,7 @@ public sealed class ResolveCachedProjectReferencesTask : Task
 
         var logger = new TaskLoggingHelperLogger(Log);
         var evaluator = new ProjectEvaluator();
-        var fileHasher = new FileHasher();
+        var fileHasher = new FileHasher(new TaskLoggingHelperLogger<FileHasher>(Log));
         var cacheKeyService = new CacheKeyService(evaluator, fileHasher, logger);
 
         var options = new CacheKeyOptions

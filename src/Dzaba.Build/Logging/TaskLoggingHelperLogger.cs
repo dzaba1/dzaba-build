@@ -70,3 +70,33 @@ public sealed class TaskLoggingHelperLogger : Microsoft.Extensions.Logging.ILogg
         }
     }
 }
+
+/// <summary>
+/// Generic sibling of <see cref="TaskLoggingHelperLogger"/> for consumers that need an
+/// <see cref="Microsoft.Extensions.Logging.ILogger{TCategoryName}"/>, e.g. types built with plain
+/// constructor injection rather than the non-generic <see cref="Microsoft.Extensions.Logging.ILogger"/>.
+/// </summary>
+public sealed class TaskLoggingHelperLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    private readonly TaskLoggingHelperLogger inner;
+
+    public TaskLoggingHelperLogger(TaskLoggingHelper log)
+    {
+        inner = new TaskLoggingHelperLogger(log);
+    }
+
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
+    {
+        return inner.BeginScope(state);
+    }
+
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return inner.IsEnabled(logLevel);
+    }
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+    {
+        inner.Log(logLevel, eventId, state, exception, formatter);
+    }
+}

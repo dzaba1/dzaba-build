@@ -1,16 +1,31 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Enumeration;
 using System.Linq;
 using Blake3;
+using Microsoft.Extensions.Logging;
 
 namespace Dzaba.Build.Lib.Hashing;
 
 public sealed class FileHasher : IFileHasher
 {
+    private readonly ILogger<FileHasher> logger;
+
+    public FileHasher(ILogger<FileHasher> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        this.logger = logger;
+    }
+
     public string HashFile(string filePath)
     {
+        ArgumentException.ThrowIfNullOrEmpty(filePath);
+
+        var stopwatch = Stopwatch.StartNew();
+
         using var hasher = Hasher.New();
         using var stream = File.OpenRead(filePath);
 
@@ -21,7 +36,12 @@ public sealed class FileHasher : IFileHasher
             hasher.Update(buffer.AsSpan(0, read));
         }
 
-        return hasher.Finalize().ToString();
+        var hash = hasher.Finalize().ToString();
+
+        stopwatch.Stop();
+        logger.LogInformation("Hashed file '{FilePath}' in {Elapsed}.", filePath, stopwatch.Elapsed);
+
+        return hash;
     }
 
     public IReadOnlyList<FileHash> HashDirectory(
@@ -29,6 +49,10 @@ public sealed class FileHasher : IFileHasher
         IEnumerable<string> excludedDirectoryNames,
         IEnumerable<string> excludedFilePatterns)
     {
+        ArgumentException.ThrowIfNullOrEmpty(rootDirectory);
+
+        var stopwatch = Stopwatch.StartNew();
+
         var directoryNames = ToSet(excludedDirectoryNames);
         var filePatterns = excludedFilePatterns?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? Array.Empty<string>();
 
@@ -37,6 +61,10 @@ public sealed class FileHasher : IFileHasher
             .ToList();
 
         results.Sort((a, b) => string.CompareOrdinal(a.RelativePath, b.RelativePath));
+
+        stopwatch.Stop();
+        logger.LogInformation("Hashed directory '{RootDirectory}' ({FileCount} files) in {Elapsed}.", rootDirectory, results.Count, stopwatch.Elapsed);
+
         return results;
     }
 

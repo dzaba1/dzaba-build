@@ -16,4 +16,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Dzaba.Build.Lib\Dzaba.Build.Lib.csproj" />
+  </ItemGroup>
+
 </Project>

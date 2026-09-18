@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Dzaba.Build.Hashing;
+namespace Dzaba.Build.Lib.Hashing;
 
 public interface IFileHasher
 {

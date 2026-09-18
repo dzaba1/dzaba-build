@@ -7,7 +7,7 @@ using System.Runtime.Loader;
 using Dzaba.Build.Caching;
 using Dzaba.Build.Concurrency;
 using Dzaba.Build.Graph;
-using Dzaba.Build.Hashing;
+using Dzaba.Build.Lib.Hashing;
 using Dzaba.Build.Logging;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;

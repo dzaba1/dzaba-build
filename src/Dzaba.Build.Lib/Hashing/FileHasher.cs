@@ -5,7 +5,7 @@ using System.IO.Enumeration;
 using System.Linq;
 using Blake3;
 
-namespace Dzaba.Build.Hashing;
+namespace Dzaba.Build.Lib.Hashing;
 
 public sealed class FileHasher : IFileHasher
 {

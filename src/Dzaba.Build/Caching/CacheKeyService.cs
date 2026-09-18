@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using Blake3;
 using Dzaba.Build.Graph;
-using Dzaba.Build.Hashing;
+using Dzaba.Build.Lib.Hashing;
 using Microsoft.Extensions.Logging;
 
 namespace Dzaba.Build.Caching;

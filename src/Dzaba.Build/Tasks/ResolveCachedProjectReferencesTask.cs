@@ -64,6 +64,16 @@ public sealed class ResolveCachedProjectReferencesTask : Task
 
     public override bool Execute()
     {
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddProvider(new TaskLoggingHelperLoggerProvider(Log)));
+        services.AddDzabaBuildLib();
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // Published before ResolveCacheStorage() runs, so a backend's constructor - loaded via
+        // ADR-0004's same-AssemblyLoadContext reflection - can pick up a typed ILogger<T> even
+        // though its constructor only receives a single string.
+        CacheStorageLoggerRegistry.Current = serviceProvider.GetRequiredService<ILoggerFactory>();
+
         ICacheStorage storage;
         try
         {
@@ -85,11 +95,6 @@ public sealed class ResolveCachedProjectReferencesTask : Task
 
         var logger = new TaskLoggingHelperLogger(Log);
         var evaluator = new ProjectEvaluator();
-
-        var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddProvider(new TaskLoggingHelperLoggerProvider(Log)));
-        services.AddDzabaBuildLib();
-        using var serviceProvider = services.BuildServiceProvider();
 
         var fileHasher = serviceProvider.GetRequiredService<IFileHasher>();
         var hashCombiner = serviceProvider.GetRequiredService<IHashCombiner>();

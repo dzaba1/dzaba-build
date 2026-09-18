@@ -11,12 +11,22 @@
        still fails exactly as it would with no Dzaba wiring at all. Pass
        "-p:DzabaBuildEnabled=true" to turn it on for a given build. -->
   <PropertyGroup>
-    <DzabaCacheStorageDirectory Condition="'$(DzabaCacheStorageDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\temp\</DzabaCacheStorageDirectory>
     <DzabaCacheExcludeDirectories Condition="'$(DzabaCacheExcludeDirectories)' == ''">bin;obj;.git;.vs</DzabaCacheExcludeDirectories>
     <DzabaCacheAncestorFiles Condition="'$(DzabaCacheAncestorFiles)' == ''">Directory.Build.props;Directory.Build.targets;Directory.Packages.props;NuGet.config;global.json</DzabaCacheAncestorFiles>
     <DzabaCacheVersionFileName Condition="'$(DzabaCacheVersionFileName)' == ''">version.json</DzabaCacheVersionFileName>
   </PropertyGroup>
 
+  <!-- Local dev shares a FileCache directory on disk; GitHub Actions runners are separate
+       machines, so CI instead uses Dzaba.Build.GhcrOciCache to share cache entries over the
+       network via ghcr.io. GITHUB_ACTIONS is set to "true" by every Actions runner. -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">
+    <DzabaCacheStorageDirectory Condition="'$(DzabaCacheStorageDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\temp\</DzabaCacheStorageDirectory>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <DzabaCacheStorageDirectory Condition="'$(DzabaCacheStorageDirectory)' == ''">ghcr.io/$(GITHUB_REPOSITORY)/dzaba-cache</DzabaCacheStorageDirectory>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build\build\Dzaba.Build.props" />
-  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.props" Condition="'$(GITHUB_ACTIONS)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.GhcrOciCache\build\Dzaba.Build.GhcrOciCache.props" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
 </Project>

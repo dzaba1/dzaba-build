@@ -3,6 +3,10 @@ name: Test App1
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-sdk:
     name: Build SDK
@@ -26,6 +30,7 @@ jobs:
       - name: Build Dzaba.Build SDK
         run: |
           dotnet build src/Dzaba.Build.FileCache/Dzaba.Build.FileCache.csproj -c Release
+          dotnet build src/Dzaba.Build.GhcrOciCache/Dzaba.Build.GhcrOciCache.csproj -c Release
           dotnet build src/Dzaba.Build.Cmd/Dzaba.Build.Cmd.csproj -c Release
 
       - name: Upload Dzaba.Build SDK artifact
@@ -37,6 +42,8 @@ jobs:
             src/Dzaba.Build/build
             src/Dzaba.Build.FileCache/bin/Release
             src/Dzaba.Build.FileCache/build
+            src/Dzaba.Build.GhcrOciCache/bin/Release
+            src/Dzaba.Build.GhcrOciCache/build
             src/Dzaba.Build.Cmd/bin/Release
           retention-days: 1
 
@@ -77,6 +84,8 @@ jobs:
       - name: Build Lib1
         run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/Lib1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-lib-2-3-5:
     name: Build Lib2, 3 and 5
@@ -118,6 +127,8 @@ jobs:
       - name: Build Libs
         run: dotnet build libs-2-3-5.proj -c Release --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/traversals
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-lib-7:
     name: Build Lib7
@@ -156,6 +167,8 @@ jobs:
       - name: Build Lib7
         run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/Lib7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-lib-10:
     name: Build Lib10
@@ -194,6 +207,8 @@ jobs:
       - name: Build Lib10
         run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/Lib10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-app1:
     name: Build App1
@@ -232,3 +247,5 @@ jobs:
       - name: Build App1
         run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
         working-directory: examples/monorepo/App1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

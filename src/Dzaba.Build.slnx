@@ -2,6 +2,7 @@
   <Project Path="Dzaba.Build/Dzaba.Build.csproj" />
   <Project Path="Dzaba.Build.Cmd/Dzaba.Build.Cmd.csproj" />
   <Project Path="Dzaba.Build.FileCache/Dzaba.Build.FileCache.csproj" />
+  <Project Path="Dzaba.Build.GhcrOciCache/Dzaba.Build.GhcrOciCache.csproj" />
   <Project Path="Dzaba.Build.Lib/Dzaba.Build.Lib.csproj" />
   <Project Path="Dzaba.Build.Lib.Tests/Dzaba.Build.Lib.Tests.csproj" />
 </Solution>

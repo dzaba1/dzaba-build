@@ -1,4 +1,5 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build\build\Dzaba.Build.targets" />
-  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.FileCache\build\Dzaba.Build.FileCache.targets" Condition="'$(GITHUB_ACTIONS)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\src\Dzaba.Build.GhcrOciCache\build\Dzaba.Build.GhcrOciCache.targets" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
 </Project>

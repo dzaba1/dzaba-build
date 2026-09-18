@@ -4,7 +4,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-lib1:
+    name: Build Lib1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /src/
+            /examples/monorepo/Lib1/
+            /examples/monorepo/Directory.Build.props
+            /examples/monorepo/Directory.Build.targets
+            /examples/monorepo/Directory.Packages.props
+            /examples/monorepo/Framework.cs
+            /examples/monorepo/NuGet.config
+            /examples/monorepo/version.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Build Dzaba.Build SDK
+        run: dotnet build src/Dzaba.Build.slnx
+
+      - name: Build Lib1
+        run: dotnet build -c Release --no-dependencies -p:DzabaBuildEnabled=true
+        working-directory: examples/monorepo/Lib1
+
+  build-app1:
+    name: Build App1
+    needs: [build-lib1]
     runs-on: windows-latest
     steps:
       - name: Checkout
